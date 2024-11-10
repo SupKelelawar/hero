@@ -1,13 +1,4 @@
-{
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ]
-}
+[[redirects]]
+from = "/api/*"
+to = "/.vercel/functions/:splat"
+status = 200
