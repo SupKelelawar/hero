@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 const shouldCompress = require("../util/shouldCompress");
 const compress = require("../util/compress");
 
-const DEFAULT_QUALITY = 10;
+const DEFAULT_QUALITY = 1;
 
 exports.handler = async (event, context) => {
     let { url } = event.queryStringParameters;
@@ -12,7 +12,7 @@ exports.handler = async (event, context) => {
     if (!url) {
         return {
             statusCode: 200,
-            body: "bandwidth-hero siap dihunakan 👍"
+            body: "bandwidth-hero siap digunakan 👍"
         };
     }
 
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
     url = url.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
 
     const webp = !jpeg;
-    const grayscale = bw != 0;
+    const grayscale = false;
     const quality = parseInt(l, 10) || DEFAULT_QUALITY;
 
     try {
