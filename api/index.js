@@ -12,7 +12,7 @@ exports.handler = async (event, context) => {
     if (!url) {
         return {
             statusCode: 200,
-            body: "bandwidth-hero siap dihunakan 👍"
+            body: "bandwidth-hero siap digunakan 👍"
         };
     }
 
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
     url = url.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
 
     const webp = !jpeg;
-    const grayscale = bw != 0;
+    const grayscale = false;
     const quality = parseInt(l, 10) || DEFAULT_QUALITY;
 
     try {
