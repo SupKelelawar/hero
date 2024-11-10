@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 const shouldCompress = require("../util/shouldCompress");
 const compress = require("../util/compress");
 
-const DEFAULT_QUALITY = 10;
+const DEFAULT_QUALITY = 1;
 
 exports.handler = async (event, context) => {
     let { url } = event.queryStringParameters;
