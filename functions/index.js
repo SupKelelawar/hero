@@ -6,8 +6,26 @@ const compress = require("../util/compress");
 const DEFAULT_QUALITY = 40;
 
 exports.handler = async (event, context) => {
-    let { url, jpeg, bw, l, w, q } = event.queryStringParameters;
+    const { w, q, url, jpeg, bw, l } = event.queryStringParameters;
 
+    // Validasi w dan q di awal
+    const quality = parseInt(q, 10) || parseInt(l, 10) || DEFAULT_QUALITY;
+    const width = parseInt(w, 10) || null;
+
+    if (quality < 1 || quality > 100) {
+        return {
+            statusCode: 400,
+            body: "Quality (q) must be between 1 and 100",
+        };
+    }
+    if (width && (width < 1 || isNaN(width))) {
+        return {
+            statusCode: 400,
+            body: "Width (w) must be a positive number",
+        };
+    }
+
+    // Periksa apakah URL ada
     if (!url) {
         return {
             statusCode: 200,
@@ -15,27 +33,26 @@ exports.handler = async (event, context) => {
         };
     }
 
+    let processedUrl = url;
     try {
-        url = JSON.parse(url); // Jika url adalah JSON string
+        processedUrl = JSON.parse(url); // Jika url adalah JSON string
     } catch {
         // Biarkan url tetap string jika parsing gagal
     }
 
-    if (Array.isArray(url)) {
-        url = url.join("&url=");
+    if (Array.isArray(processedUrl)) {
+        processedUrl = processedUrl.join("&url=");
     }
 
     // Bersihkan URL
-    url = url.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
+    processedUrl = processedUrl.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
 
     const webp = !jpeg;
     const grayscale = bw != 0;
-    const quality = parseInt(q, 10) || parseInt(l, 10) || DEFAULT_QUALITY; // Gunakan q jika ada, fallback ke l
-    const width = parseInt(w, 10) || null; // Ambil parameter w, null jika tidak ada
 
     try {
         let response_headers = {};
-        const { data, type: originType } = await fetch(url, {
+        const { data, type: originType } = await fetch(processedUrl, {
             headers: {
                 ...pick(event.headers, ["cookie", "dnt", "referer"]),
                 "user-agent": "Bandwidth-Hero Compressor",
@@ -56,6 +73,11 @@ exports.handler = async (event, context) => {
             };
         });
 
+        // Jika fetch gagal (status code dikembalikan), kembalikan respons
+        if (data.statusCode) {
+            return data;
+        }
+
         const originSize = data.length;
 
         if (shouldCompress(originType, originSize, webp)) {
@@ -64,12 +86,12 @@ exports.handler = async (event, context) => {
                 webp,
                 grayscale,
                 quality,
-                width, // Teruskan parameter width
+                width,
                 originSize
             );
 
             if (err) {
-                console.log("Conversion failed: ", url);
+                console.log("Conversion failed: ", processedUrl);
                 throw err;
             }
 
