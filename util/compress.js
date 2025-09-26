@@ -3,7 +3,7 @@ const sharp = require("sharp");
 function compress(input, webp, grayscale, quality, width, originSize) {
     const format = webp ? "webp" : "jpeg";
 
-    // Validasi parameter
+    // Validasi parameter dengan fallback aman
     const qualityValue = Math.max(1, Math.min(100, parseInt(quality) || 80)); // Default quality: 80
     const widthValue = width ? Math.max(1, parseInt(width)) : null; // Pastikan width positif atau null
 
