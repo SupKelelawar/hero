@@ -6,53 +6,53 @@ const compress = require("../util/compress");
 const DEFAULT_QUALITY = 40;
 
 exports.handler = async (event, context) => {
-    const { w, q, url, jpeg, bw, l } = event.queryStringParameters;
+    // Pastikan queryStringParameters ada
+    const queryParams = event.queryStringParameters || {};
+    let { url, jpeg, bw, l, w, q } = queryParams;
 
-    // Validasi w dan q di awal
-    const quality = parseInt(q, 10) || parseInt(l, 10) || DEFAULT_QUALITY;
-    const width = parseInt(w, 10) || null;
+    // Log untuk debugging
+    console.log("Query parameters:", queryParams);
 
-    if (quality < 1 || quality > 100) {
-        return {
-            statusCode: 400,
-            body: "Quality (q) must be between 1 and 100",
-        };
-    }
-    if (width && (width < 1 || isNaN(width))) {
-        return {
-            statusCode: 400,
-            body: "Width (w) must be a positive number",
-        };
-    }
-
-    // Periksa apakah URL ada
     if (!url) {
+        console.log("No URL provided, returning default response");
         return {
             statusCode: 200,
             body: "bandwidth-hero-proxy",
         };
     }
 
-    let processedUrl = url;
     try {
-        processedUrl = JSON.parse(url); // Jika url adalah JSON string
+        url = JSON.parse(url); // Jika url adalah JSON string
     } catch {
         // Biarkan url tetap string jika parsing gagal
     }
 
-    if (Array.isArray(processedUrl)) {
-        processedUrl = processedUrl.join("&url=");
+    if (Array.isArray(url)) {
+        url = url.join("&url=");
     }
 
     // Bersihkan URL
-    processedUrl = processedUrl.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
+    url = url.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
 
     const webp = !jpeg;
     const grayscale = bw != 0;
+    const quality = parseInt(q, 10) || parseInt(l, 10) || DEFAULT_QUALITY; // Gunakan q, fallback ke l
+    const width = parseInt(w, 10) || null; // Gunakan w, null jika tidak ada
+
+    // Validasi parameter (opsional, hanya untuk keamanan)
+    if (quality < 1 || quality > 100) {
+        console.log("Invalid quality value:", quality);
+        // Gunakan DEFAULT_QUALITY alih-alih error agar tidak mengganggu
+        quality = DEFAULT_QUALITY;
+    }
+    if (width && (width < 1 || isNaN(width))) {
+        console.log("Invalid width value:", width);
+        width = null; // Abaikan width jika tidak valid
+    }
 
     try {
         let response_headers = {};
-        const { data, type: originType } = await fetch(processedUrl, {
+        const { data, type: originType } = await fetch(url, {
             headers: {
                 ...pick(event.headers, ["cookie", "dnt", "referer"]),
                 "user-agent": "Bandwidth-Hero Compressor",
@@ -61,11 +61,12 @@ exports.handler = async (event, context) => {
             },
         }).then(async (res) => {
             if (!res.ok) {
+                console.log(`Fetch failed with status ${res.status}: ${url}`);
                 return {
-                    statusCode: res.status || 302,
+                    statusCode: res.status || 502,
+                    body: `Failed to fetch image: ${res.statusText}`,
                 };
             }
-
             response_headers = res.headers;
             return {
                 data: await res.buffer(),
@@ -73,7 +74,6 @@ exports.handler = async (event, context) => {
             };
         });
 
-        // Jika fetch gagal (status code dikembalikan), kembalikan respons
         if (data.statusCode) {
             return data;
         }
@@ -86,12 +86,12 @@ exports.handler = async (event, context) => {
                 webp,
                 grayscale,
                 quality,
-                width,
+                width, // Teruskan parameter width
                 originSize
             );
 
             if (err) {
-                console.log("Conversion failed: ", processedUrl);
+                console.log("Conversion failed: ", url, err);
                 throw err;
             }
 
@@ -124,10 +124,10 @@ exports.handler = async (event, context) => {
             };
         }
     } catch (err) {
-        console.error(err);
+        console.error("Error:", err);
         return {
             statusCode: 500,
-            body: err.message || "",
+            body: err.message || "Internal Server Error",
         };
     }
 };
