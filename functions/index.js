@@ -6,128 +6,95 @@ const compress = require("../util/compress");
 const DEFAULT_QUALITY = 40;
 
 exports.handler = async (event, context) => {
-    // Pastikan queryStringParameters ada
-    const queryParams = event.queryStringParameters || {};
-    let { url, jpeg, bw, l, w, q } = queryParams;
-
-    // Log untuk debugging
-    console.log("Query parameters:", queryParams);
+    let { url } = event.queryStringParameters;
+    const { jpeg, bw, l } = event.queryStringParameters;
 
     if (!url) {
-        console.log("No URL provided, returning default response");
         return {
             statusCode: 200,
-            body: "bandwidth-hero-proxy",
+            body: "bandwidth-hero-proxy"
         };
     }
 
     try {
-        url = JSON.parse(url); // Jika url adalah JSON string
-    } catch {
-        // Biarkan url tetap string jika parsing gagal
-    }
+        url = JSON.parse(url);  // if simple string, then will remain so 
+    } catch { }
 
     if (Array.isArray(url)) {
         url = url.join("&url=");
     }
 
-    // Bersihkan URL
+    // by now, url is a string
     url = url.replace(/http:\/\/1\.1\.\d\.\d\/bmi\/(https?:\/\/)?/i, "http://");
 
     const webp = !jpeg;
     const grayscale = bw != 0;
-    const quality = parseInt(q, 10) || parseInt(l, 10) || DEFAULT_QUALITY; // Gunakan q, fallback ke l
-    const width = parseInt(w, 10) || null; // Gunakan w, null jika tidak ada
-
-    // Validasi parameter (opsional, hanya untuk keamanan)
-    if (quality < 1 || quality > 100) {
-        console.log("Invalid quality value:", quality);
-        // Gunakan DEFAULT_QUALITY alih-alih error agar tidak mengganggu
-        quality = DEFAULT_QUALITY;
-    }
-    if (width && (width < 1 || isNaN(width))) {
-        console.log("Invalid width value:", width);
-        width = null; // Abaikan width jika tidak valid
-    }
+    const quality = parseInt(l, 10) || DEFAULT_QUALITY;
 
     try {
         let response_headers = {};
         const { data, type: originType } = await fetch(url, {
             headers: {
-                ...pick(event.headers, ["cookie", "dnt", "referer"]),
-                "user-agent": "Bandwidth-Hero Compressor",
-                "x-forwarded-for": event.headers["x-forwarded-for"] || event.ip,
-                via: "1.1 bandwidth-hero",
-            },
-        }).then(async (res) => {
-            if (!res.ok) {
-                console.log(`Fetch failed with status ${res.status}: ${url}`);
-                return {
-                    statusCode: res.status || 502,
-                    body: `Failed to fetch image: ${res.statusText}`,
-                };
+                ...pick(event.headers, ['cookie', 'dnt', 'referer']),
+                'user-agent': 'Bandwidth-Hero Compressor',
+                'x-forwarded-for': event.headers['x-forwarded-for'] || event.ip,
+                via: '1.1 bandwidth-hero'
             }
+        }).then(async res => {
+            if (!res.ok) {
+                return {
+                    statusCode: res.status || 302
+                }
+            }
+
             response_headers = res.headers;
             return {
                 data: await res.buffer(),
-                type: res.headers.get("content-type") || "",
-            };
-        });
-
-        if (data.statusCode) {
-            return data;
-        }
+                type: res.headers.get("content-type") || ""
+            }
+        })
 
         const originSize = data.length;
 
         if (shouldCompress(originType, originSize, webp)) {
-            const { err, output, headers } = await compress(
-                data,
-                webp,
-                grayscale,
-                quality,
-                width, // Teruskan parameter width
-                originSize
-            );
+            const { err, output, headers } = await compress(data, webp, grayscale, quality, originSize);   // compress
 
             if (err) {
-                console.log("Conversion failed: ", url, err);
+                console.log("Conversion failed: ", url);
                 throw err;
             }
 
-            console.log(
-                `From ${originSize}, Saved: ${
-                    ((originSize - output.length) / originSize) * 100
-                }%`
-            );
-            const encoded_output = output.toString("base64");
+            console.log(`From ${originSize}, Saved: ${(originSize - output.length)/originSize}%`);
+            const encoded_output = output.toString('base64');
             return {
                 statusCode: 200,
                 body: encoded_output,
-                isBase64Encoded: true,
+                isBase64Encoded: true,  // note: The final size we receive is `originSize` only, maybe it is decoding it server side, because at client side i do get the decoded image directly
+                // "content-length": encoded_output.length,     // this doesn't have any effect, this header contains the actual data size, (decrypted binary data size, not the base64 version)
                 headers: {
                     "content-encoding": "identity",
                     ...response_headers,
-                    ...headers,
-                },
-            };
+                    ...headers
+                }
+            }
         } else {
-            console.log("Bypassing... Size: ", data.length);
-            return {
+            console.log("Bypassing... Size: " , data.length);
+            return {    // bypass
                 statusCode: 200,
-                body: data.toString("base64"),
+                body: data.toString('base64'),
                 isBase64Encoded: true,
                 headers: {
                     "content-encoding": "identity",
+                    // "x-proxy-bypass": '1',
                     ...response_headers,
-                },
-            };
+                }
+            }
         }
     } catch (err) {
-        console.error("Error:", err);
+        console.error(err);
         return {
             statusCode: 500,
-            body: err.message || "Internal Server Error",
-        };
+            body: err.message || ""
+        }
     }
-};
+}
